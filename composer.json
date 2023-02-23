@@ -1,0 +1,18 @@
+{
+    "name": "fazzinipierluigi/laraexpress_datasource",
+    "description": "A laravel library that generates a datasource for the DevExpress library using Eloquent",
+    "type": "library",
+    "license": "GPLv3",
+    "autoload": {
+        "psr-4": {
+            "Fazzinipierluigi\\LaraexpressDatasource\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Pierluigi Fazzini",
+            "email": "fazzinipierluigi@gmail.com"
+        }
+    ],
+    "require": {}
+}
