@@ -1,6 +1,7 @@
 {
     "name": "fazzinipierluigi/laraexpress_datasource",
-    "description": "A laravel library that generates a datasource for the DevExpress library using Eloquent",
+    "description": "A laravel library that generates a data source for DevExpress frontend libraries",
+	"keywords": ["library","devexpress", "eloquent", "laravel", "datasource"],
     "type": "library",
     "license": "GPLv3",
     "autoload": {
@@ -14,5 +15,7 @@
             "email": "fazzinipierluigi@gmail.com"
         }
     ],
-    "require": {}
+    "require": {
+		"laravel/framework": "^9.0|^10.0"
+	}
 }
