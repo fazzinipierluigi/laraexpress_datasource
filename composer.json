@@ -3,7 +3,7 @@
     "description": "A laravel library that generates a data source for DevExpress frontend libraries",
 	"keywords": ["library","devexpress", "eloquent", "laravel", "datasource"],
     "type": "library",
-    "license": "GPLv3",
+    "license": "GPL-3.0-or-later",
     "autoload": {
         "psr-4": {
             "Fazzinipierluigi\\LaraexpressDatasource\\": "src/"
