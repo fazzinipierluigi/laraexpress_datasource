@@ -4,10 +4,14 @@ This library provides a helper for generating datasources for widgets in the Dev
 
 ## Advancement
 
-- [x] Filters
-- [x] Sorting
-- [x] Pagination
-- [ ] Grouping
+- [ ] Load
+  - [x] Filters
+  - [x] Sorting
+  - [x] Pagination
+  - [ ] Grouping
+- [ ] Insert
+- [ ] Update
+- [ ] Delete
 
 ## Usage
 
