@@ -63,7 +63,7 @@ class EloquentSource
 			if(!empty($filters))
 			{
 				# If there are filter, apply
-				$this->data_grid_filtered_dataset = $this->processFilters($filters, $this->data_grid_filtered_dataset);
+				$this->data_grid_filtered_dataset = $this->processFilters($filters, $this->data_grid_filtered_dataset,$field_map);
 			}
 		}
 
@@ -79,11 +79,27 @@ class EloquentSource
 				{
 					if(is_object($sort))
 					{
-						$this->data_grid_filtered_dataset->orderBy($sort->selector, ($sort->desc)?'DESC':'ASC');
+						if(empty($fields_map[$sort->selector]))
+							$this->data_grid_filtered_dataset->orderBy($sort->selector, ($sort->desc)?'DESC':'ASC');
+						else
+						{
+							if(is_string($fields_map[$sort->selector]))
+								$this->data_grid_filtered_dataset->orderBy($fields_map[$sort->selector]);
+							elseif(is_array($fields_map[$sort->selector]))
+								$this->data_grid_filtered_dataset->orderBy($fields_map[$sort->selector][0]);
+						}
 					}
 					elseif(is_string($sort))
 					{
-						$this->data_grid_filtered_dataset->orderBy($sort);
+						if(empty($fields_map[$sort]))
+							$this->data_grid_filtered_dataset->orderBy($sort);
+						else
+						{
+							if(is_string($fields_map[$sort]))
+								$this->data_grid_filtered_dataset->orderBy($fields_map[$sort]);
+							elseif(is_array($fields_map[$sort]))
+								$this->data_grid_filtered_dataset->orderBy($fields_map[$sort][0]);
+						}
 					}
 				}
 			}
