@@ -5,6 +5,9 @@
 
 namespace Fazzinipierluigi\LaraexpressDatasource;
 
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
+
 class EloquentSource
 {
 	/**
@@ -32,6 +35,7 @@ class EloquentSource
 	 * @var null
 	 */
 	private $group_count = NULL;
+	private $groups_tree = NULL;
 
 	/**
 	 * @param \Illuminate\Database\Query\Builder|\Illuminate\Database\Eloquent\Builder $data_set An instance of the query builder on which the filters will be applied
@@ -112,7 +116,7 @@ class EloquentSource
 			if(is_string($group_summary))
 				$group_summary = json_decode($group_summary,1);
 
-			$this->processGroups($group_expression, $group_summary, ($data_filters['skip'] ?? 0), ($data_filters['take'] ?? 10));
+			$this->processGroups($group_expression, $field_map, ($data_filters['skip'] ?? 0), ($data_filters['take'] ?? 10));
 
 			# Retrieve group count if required
 			$this->group_count = (!empty($data_filters["requireGroupCount"])) ? $this->data_grid_filtered_dataset->groupCount() : NULL;
@@ -138,35 +142,43 @@ class EloquentSource
 	 */
 	public function getArray($output = NULL)
 	{
-		$response = [];
-
-		if(strtolower(get_class($output)) === "closure")
+		if(empty($this->groups_tree))
 		{
-			$response["data"] = [];
-			foreach($this->data_grid_filtered_dataset->get() as $data_row)
-			{
-				$tmp_data = $output($data_row);
-				if(!is_array($tmp_data))
-					throw new \Exception('The function you provided must return an associative array');
+			$response = [];
 
-				if(!empty($tmp_data))
-					$response["data"][] = $tmp_data;
+			if(strtolower(get_class($output)) === "closure")
+			{
+				$response["data"] = [];
+				foreach($this->data_grid_filtered_dataset->get() as $data_row)
+				{
+					$tmp_data = $output($data_row);
+					if(!is_array($tmp_data))
+						throw new \Exception('The function you provided must return an associative array');
+
+					if(!empty($tmp_data))
+						$response["data"][] = $tmp_data;
+				}
+			}
+			else
+			{
+				$response["data"] = $this->data_grid_filtered_dataset->get()->toArray();
+			}
+
+			if(!is_null($this->total_count))
+			{
+				$response["totalCount"] = $this->total_count;
+			}
+			if(!is_null($this->total_summary))
+			{
+				$response["summary"] = $this->total_summary;
+			}
+			if(!is_null($this->group_count))
+			{
+				$response["groupCount"] = $this->group_count;
 			}
 		}
 		else
-		{
-			$response["data"] = $this->data_grid_filtered_dataset->get()->toArray();
-		}
-
-		if (!is_null($this->total_count)) {
-			$response["totalCount"] = $this->total_count;
-		}
-		if (!is_null($this->total_summary)) {
-			$response["summary"] = $this->total_summary;
-		}
-		if (!is_null($this->group_count)) {
-			$response["groupCount"] = $this->group_count;
-		}
+			$response = ["data" => $this->groups_tree];
 
 		return $response;
 	}
@@ -358,9 +370,144 @@ class EloquentSource
 	 * @param $take
 	 * @return void
 	 */
-	private function processGroups($expression, $summary, $skip, $take)
+	private function processGroups($expression, $field_map, $skip, $take)
 	{
+		$new_query = clone $this->data_grid_filtered_dataset;
+		$group_structure = [];
+		if(!empty($expression))
+		{
+			$groupCount = 0;
+			$last_group_expanded = true;
+			if (is_string($expression))
+			{
+				$groupCount = count(explode(",", $expression));
+				$select_list = [];
+				$expression_fields = explode(",", trim($expression));
+				foreach($expression_fields as $group_index => $expression_field)
+				{
+					if(!empty($field_map[$expression_field]))
+					{
+						if(is_string($field_map[$expression_field]))
+						{
+							$group_structure[$group_index][] = 'FIELD_'.str_replace('.','_',$field_map[$expression_field]);
+							$select_list[] = $field_map[$expression_field].' AS FIELD_'.str_replace('.','_',$field_map[$expression_field]);
+							$new_query->groupBy($field_map[$expression_field]);
+							$new_query->orderBy($field_map[$expression_field],'ASC');
+						}
+						elseif(is_array($field_map[$expression_field]))
+						{
+							foreach($field_map[$expression_field] as $sub_field)
+							{
+								$group_structure[$group_index][] = 'FIELD_'.str_replace('.','_',$sub_field);
+								$select_list[] = $sub_field.' AS FIELD_'.str_replace('.','_',$sub_field);
+								$new_query->groupBy($sub_field);
+								$new_query->orderBy($sub_field,'ASC');
+							}
+						}
+					}
+					else
+					{
+						$group_structure[$group_index][] = 'FIELD_'.str_replace('.','_',$expression_field);
+						$select_list[] = $expression_field.' AS FIELD_'.str_replace('.','_',$expression_field);
+						$new_query->groupBy($expression_field);
+						$new_query->orderBy($expression_field,'ASC');
+					}
+				}
+				$select_list[] = DB::raw('COUNT(1) AS leaf_count');
 
+				$new_query->select($select_list);
+			}
+			elseif (is_array($expression))
+			{
+				$groupCount = count($expression);
+				$select_list = [];
+				foreach($expression as $group_index => $col)
+				{
+					if(!empty($field_map[$col->selector]))
+					{
+						if(is_string($field_map[$col->selector]))
+						{
+							$group_structure[$group_index][] = 'FIELD_'.str_replace('.','_',$field_map[$col->selector]);
+							$select_list[] = $field_map[$col->selector].' AS FIELD_'.str_replace('.','_',$field_map[$col->selector]);
+							$new_query->groupBy($field_map[$col->selector]);
+							$new_query->orderBy($field_map[$col->selector],(empty($col->desc))?"ASC":"DESC");
+						}
+						elseif(is_array($field_map[$col->selector]))
+						{
+							foreach($field_map[$col->selector] as $sub_field)
+							{
+								$group_structure[$group_index][] = 'FIELD_'.str_replace('.','_',$sub_field);
+								$select_list[] = $sub_field.' AS FIELD_'.str_replace('.','_',$sub_field);
+								$new_query->groupBy($sub_field);
+								$new_query->orderBy($sub_field,(empty($col->desc))?"ASC":"DESC");
+							}
+						}
+					}
+					else
+					{
+						$group_structure[$group_index][] = 'FIELD_'.str_replace('.','_',$col->selector);
+						$select_list[] = $col->selector.' AS FIELD_'.str_replace('.','_',$col->selector);
+						$new_query->groupBy($col->selector);
+						$new_query->orderBy($col->selector,(empty($col->desc))?"ASC":"DESC");
+					}
+				}
+				$select_list[] = DB::raw('COUNT(1) AS leaf_count');
+
+				$new_query->select($select_list);
+			}
+
+
+			$this->groups_tree = [];
+			foreach($new_query->get() as $row)
+				$this->groups_tree = $this->add_tree($groupCount, $group_structure, $row, $this->groups_tree);
+
+			//dd($group_hierarchy);
+		}
+	}
+
+	private function add_tree($group_count, $fields, $row, $array, $level = NULL)
+	{
+		if(is_null($level))
+			$level = 0;
+		else
+		{
+			if($level<count($fields))
+				$level++;
+			else
+				return $array;
+		}
+
+		foreach($fields[$level] as $column)
+		{
+			$tmp_val = $row->$column;
+			$tmp_key = NULL;
+			$filtered = Arr::first($array,function($value, $key) use ($tmp_val, &$tmp_key){
+				if(!empty($value['key']) && $value['key'] === $tmp_val)
+				{
+					$tmp_key = $key;
+					return TRUE;
+				}
+
+				return FALSE;
+			});
+
+			if(!empty($filtered))
+				$array[$tmp_key]['items'] = $this->add_tree($group_count, $fields, $row, $filtered['items'] ?? [], $level);
+			else
+				if($group_count-1 > $level)
+					$array[] = [
+						'key' => $tmp_val,
+						'items' => []
+					];
+				else
+					$array[] = [
+						'key' => $tmp_val,
+						'count' => $row->leaf_count,
+						'items' => null
+					];
+		}
+
+		return $array;
 	}
 
 	/**
