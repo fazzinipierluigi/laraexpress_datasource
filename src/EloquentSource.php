@@ -83,26 +83,26 @@ class EloquentSource
 				{
 					if(is_object($sort))
 					{
-						if(empty($fields_map[$sort->selector]))
-							$this->data_grid_filtered_dataset->orderBy($sort->selector, ($sort->desc)?'DESC':'ASC');
+						if(empty($field_map[$sort->selector]))
+							$this->data_grid_filtered_dataset->orderBy($sort->selector, (!empty($sort->desc))?'DESC':'ASC');
 						else
 						{
-							if(is_string($fields_map[$sort->selector]))
-								$this->data_grid_filtered_dataset->orderBy($fields_map[$sort->selector]);
-							elseif(is_array($fields_map[$sort->selector]))
-								$this->data_grid_filtered_dataset->orderBy($fields_map[$sort->selector][0]);
+							if(is_string($field_map[$sort->selector]))
+								$this->data_grid_filtered_dataset->orderBy($field_map[$sort->selector],(!empty($sort->desc))?'DESC':'ASC');
+							elseif(is_array($field_map[$sort->selector]))
+								$this->data_grid_filtered_dataset->orderBy($field_map[$sort->selector][0],(!empty($sort->desc))?'DESC':'ASC');
 						}
 					}
 					elseif(is_string($sort))
 					{
-						if(empty($fields_map[$sort]))
+						if(empty($field_map[$sort]))
 							$this->data_grid_filtered_dataset->orderBy($sort);
 						else
 						{
-							if(is_string($fields_map[$sort]))
-								$this->data_grid_filtered_dataset->orderBy($fields_map[$sort]);
-							elseif(is_array($fields_map[$sort]))
-								$this->data_grid_filtered_dataset->orderBy($fields_map[$sort][0]);
+							if(is_string($field_map[$sort]))
+								$this->data_grid_filtered_dataset->orderBy($field_map[$sort]);
+							elseif(is_array($field_map[$sort]))
+								$this->data_grid_filtered_dataset->orderBy($field_map[$sort][0]);
 						}
 					}
 				}
@@ -380,7 +380,6 @@ class EloquentSource
 			$last_group_expanded = true;
 			if (is_string($expression))
 			{
-				$groupCount = count(explode(",", $expression));
 				$select_list = [];
 				$expression_fields = explode(",", trim($expression));
 				foreach($expression_fields as $group_index => $expression_field)
@@ -419,7 +418,6 @@ class EloquentSource
 			}
 			elseif (is_array($expression))
 			{
-				$groupCount = count($expression);
 				$select_list = [];
 				foreach($expression as $group_index => $col)
 				{
@@ -456,24 +454,25 @@ class EloquentSource
 				$new_query->select($select_list);
 			}
 
+			//$new_query->dd();
+			//dd($group_structure,$field_map,$expression);
 
 			$this->groups_tree = [];
 			foreach($new_query->get() as $row)
-				$this->groups_tree = $this->add_tree($groupCount, $group_structure, $row, $this->groups_tree);
+				$this->groups_tree = $this->add_tree($group_structure, $row, $this->groups_tree);
 
-			//dd($group_hierarchy);
+			//dd($this->groups_tree);
 		}
 	}
 
-	private function add_tree($group_count, $fields, $row, $array, $level = NULL)
+	private function add_tree($fields, $row, $array, $level = NULL)
 	{
-		if(is_null($level))
+		if($level === NULL)
 			$level = 0;
 		else
 		{
-			if($level<count($fields))
-				$level++;
-			else
+			$level++;
+			if($level == count($fields))
 				return $array;
 		}
 
@@ -492,12 +491,12 @@ class EloquentSource
 			});
 
 			if(!empty($filtered))
-				$array[$tmp_key]['items'] = $this->add_tree($group_count, $fields, $row, $filtered['items'] ?? [], $level);
+				$array[$tmp_key]['items'] = $this->add_tree($fields, $row, $filtered['items'] ?? [], $level);
 			else
-				if($group_count-1 > $level)
+				if(count($fields)-1 > $level)
 					$array[] = [
 						'key' => $tmp_val,
-						'items' => []
+						'items' => $this->add_tree($fields, $row, [], $level)
 					];
 				else
 					$array[] = [
