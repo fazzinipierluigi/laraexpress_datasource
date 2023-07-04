@@ -72,7 +72,7 @@ class EloquentSource
 		}
 
 		# Retrieve total count if required
-		$this->total_count = (!empty($data_filters["requireTotalCount"])) ? $this->data_grid_filtered_dataset->count() : NULL;
+		$this->total_count = (!empty($data_filters["requireTotalCount"])) ? $this->data_grid_filtered_dataset->get()->count() : NULL;
 
 		if(!empty($data_filters['sort']))
 		{
