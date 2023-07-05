@@ -8,7 +8,7 @@ This library provides a helper for generating datasources for widgets in the Dev
   - [x] Filters
   - [x] Sorting
   - [x] Pagination
-  - [ ] Grouping
+  - [x] Grouping
 - [ ] Insert
 - [ ] Update
 - [ ] Delete
@@ -46,7 +46,9 @@ $("#dataGridContainer").dxDataGrid({
     remoteOperations: {
 		filtering: true,
 		sorting: true,
-		paging: true
+		paging: true,
+		grouping: true,
+		groupPaging: true,
 	},
     // ...
 })
