@@ -43,7 +43,7 @@ class EloquentSource
 	 * @param array|null $request The instance of the "request" coming from the client
 	 * @return void
 	 * */
-	public function apply($data_set, $request, $field_map = NULL)
+	public function apply($data_set, $request, $field_map = NULL, $order_map = NULL)
 	{
 		if(empty($data_set) && !in_array(get_class($data_set), ["Illuminate\Database\Query\Builder", "Illuminate\Database\Eloquent\Builder"]))
 			throw new \Exception('The "data_set" parameter must not be empty, and must be an instance of the classes: "Illuminate\Database\Query\Builder" or "Illuminate\Database\Eloquent\Builder"');
@@ -83,27 +83,36 @@ class EloquentSource
 				{
 					if(is_object($sort))
 					{
-						if(empty($field_map[$sort->selector]))
-							$this->data_grid_filtered_dataset->orderBy($sort->selector, (!empty($sort->desc))?'DESC':'ASC');
-						else
+						if(!empty($order_map[$sort->selector]) && is_string($order_map[$sort->selector]))
+						{
+							$this->data_grid_filtered_dataset->orderBy($order_map[$sort->selector],(!empty($sort->desc))?'DESC':'ASC');
+						}
+						elseif(!empty($field_map[$sort->selector]))
 						{
 							if(is_string($field_map[$sort->selector]))
 								$this->data_grid_filtered_dataset->orderBy($field_map[$sort->selector],(!empty($sort->desc))?'DESC':'ASC');
 							elseif(is_array($field_map[$sort->selector]))
 								$this->data_grid_filtered_dataset->orderBy($field_map[$sort->selector][0],(!empty($sort->desc))?'DESC':'ASC');
 						}
+						else
+							$this->data_grid_filtered_dataset->orderBy($sort->selector, (!empty($sort->desc))?'DESC':'ASC');
 					}
 					elseif(is_string($sort))
 					{
-						if(empty($field_map[$sort]))
-							$this->data_grid_filtered_dataset->orderBy($sort);
-						else
+						if(!empty($order_map[$sort]) && is_string($order_map[$sort]))
+						{
+							$this->data_grid_filtered_dataset->orderBy($order_map[$sort]);
+						}
+						elseif(!empty($field_map[$sort]))
 						{
 							if(is_string($field_map[$sort]))
 								$this->data_grid_filtered_dataset->orderBy($field_map[$sort]);
 							elseif(is_array($field_map[$sort]))
 								$this->data_grid_filtered_dataset->orderBy($field_map[$sort][0]);
 						}
+						else
+							$this->data_grid_filtered_dataset->orderBy($sort);
+
 					}
 				}
 			}

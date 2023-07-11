@@ -88,3 +88,35 @@ public function index(Request $request)
 	}
 }
 ```
+
+The "apply" method also accepts an optional fourth parameter; this is used to override the sorting behavior:
+
+```php
+public function index(Request $request)
+{
+	if($request->ajax())
+	{
+		$contracts = \App\Model\Contracts::select('contracts.*')
+										 ->join('customers', 'customers.id', '=', 'contracts.customer_id');
+		
+		$data_source = new EloquentSource();
+		$field_map = [ // I create the array that contains the mapping field name => column name
+			'customer' => 'customers.id'
+		];
+		$field_sorting = [
+			'customer' => 'customers.company_name'
+		];
+		$data_source->apply($contracts, $request, $field_map, $field_sorting);
+		
+		return $data_source->getResponse(function($data) {
+			// ....
+		});
+	}
+	else
+	{
+		return view('customer.index')
+	}
+}
+```
+
+In this case if we had passed only the "field_map" array to apply the sorting would have been done based on the customer id, instead by overriding it we can force the sorting by company name while still maintaining the search by id.
