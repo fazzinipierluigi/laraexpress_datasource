@@ -463,15 +463,9 @@ class EloquentSource
 				$new_query->select($select_list);
 			}
 
-			//$new_query->dd();
-			//dd($group_structure,$field_map,$expression);
-
 			$this->groups_tree = [];
 			foreach($new_query->get() as $row)
 				$this->groups_tree = $this->add_tree($group_structure, $row, $this->groups_tree);
-
-			//dd($this->groups_tree);
-		}
 	}
 
 	private function add_tree($fields, $row, $array, $level = NULL)
@@ -488,6 +482,9 @@ class EloquentSource
 		foreach($fields[$level] as $column)
 		{
 			$tmp_val = $row->$column;
+			if(is_null($tmp_val))
+				continue;
+			
 			$tmp_key = NULL;
 			$filtered = Arr::first($array,function($value, $key) use ($tmp_val, &$tmp_key){
 				if(!empty($value['key']) && $value['key'] === $tmp_val)
@@ -500,19 +497,32 @@ class EloquentSource
 			});
 
 			if(!empty($filtered))
-				$array[$tmp_key]['items'] = $this->add_tree($fields, $row, $filtered['items'] ?? [], $level);
+			{
+				if($array[$tmp_key]['sys_level'] === $level)
+					$array[$tmp_key]['count'] += $row->leaf_count;
+				else
+					$array[$tmp_key]['items'] = $this->add_tree($fields, $row, $filtered['items'] ?? [], $level);
+			}
 			else
-				if(count($fields)-1 > $level)
+			{
+				if(count($fields) - 1 > $level)
+				{
 					$array[] = [
-						'key' => $tmp_val,
+						'sys_level' => $level,
+						'key'   => $tmp_val,
 						'items' => $this->add_tree($fields, $row, [], $level)
 					];
+				}
 				else
+				{
 					$array[] = [
-						'key' => $tmp_val,
+						'sys_level' => $level,
+						'key'   => $tmp_val,
 						'count' => $row->leaf_count,
-						'items' => null
+						'items' => NULL
 					];
+				}
+			}
 		}
 
 		return $array;
