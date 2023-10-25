@@ -462,10 +462,11 @@ class EloquentSource
 
 				$new_query->select($select_list);
 			}
+		}
 
-			$this->groups_tree = [];
-			foreach($new_query->get() as $row)
-				$this->groups_tree = $this->add_tree($group_structure, $row, $this->groups_tree);
+		$this->groups_tree = [];
+		foreach($new_query->get() as $row)
+			$this->groups_tree = $this->add_tree($group_structure, $row, $this->groups_tree);
 	}
 
 	private function add_tree($fields, $row, $array, $level = NULL)
