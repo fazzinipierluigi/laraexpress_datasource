@@ -33,6 +33,15 @@ public function index(Request $request)
 	}
 }
 ```
+You can pass the frontend timezone to the constructor (the default is 'Euurope/Rome'), alternatively you can set it later with the setTimezone method
+```php
+$my_data_source = new EloquentSource(); // This has as its timezone "Europe/Rome"
+
+// These two options are equivalent
+$data_source = new EloquentSource("America/Chicago");
+$data_source->setTimezone("America/Chicago");
+```
+
 In the frontend we first include the library for the data store (go to [documentation](https://github.com/DevExpress/DevExtreme.AspNet.Data)), in my case:
 	
 	<script src="https://unpkg.com/devextreme-aspnet-data/js/dx.aspnet.data.js"></script>
