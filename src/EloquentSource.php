@@ -5,6 +5,8 @@
 
 namespace Fazzinipierluigi\LaraexpressDatasource;
 
+use Carbon\Carbon;
+use Carbon\CarbonTimeZone;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 
@@ -36,6 +38,25 @@ class EloquentSource
 	 */
 	private $group_count = NULL;
 	private $groups_tree = NULL;
+
+	private $default_timezone;
+	private $utc_timezone;
+
+	public function __construct(string $tz = 'Europe/Rome')
+	{
+		$this->default_timezone = new CarbonTimeZone($tz);
+		$this->utc_timezone = new CarbonTimeZone('UTC');
+	}
+
+	/**
+	 * @param string $tz The timezone valid rappresenation
+	 * @return void
+	 * */
+	public function setTimezone(string $tz = NULL)
+	{
+		if (!empty($tz))
+			$this->default_timezone = new CarbonTimeZone($tz);
+	}
 
 	/**
 	 * @param \Illuminate\Database\Query\Builder|\Illuminate\Database\Eloquent\Builder $data_set An instance of the query builder on which the filters will be applied
@@ -356,6 +377,12 @@ class EloquentSource
 
 	private function setFilter(&$query, $clause, $field, $operator, $value)
 	{
+		if (preg_match('/^\d{4}-[01]\d-[0-3]\dT[0-2]\d:[0-5]\d:[0-5]\d(?:\.\d+)?Z?$/', $value)) {
+			$value = (Carbon::createFromFormat('Y-m-d\TH:i:s', $value, $this->default_timezone))->setTimezone($this->utc_timezone);
+		} elseif (preg_match('/^(([12]\d{3})-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01]))$/', $value)) {
+			$value = (Carbon::createFromFormat('Y-m-d', $value, $this->default_timezone))->setTimezone($this->utc_timezone);
+		}
+
 		if(is_string($field))
 			$query->{$clause}($field, $operator, $value);
 		elseif(is_array($field))
