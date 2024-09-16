@@ -186,7 +186,10 @@ class EloquentSource
 						throw new \Exception('The function you provided must return an associative array');
 
 					if(!empty($tmp_data))
-						$response["data"][] = $tmp_data;
+						if(count($tmp_data) == count($tmp_data, COUNT_RECURSIVE))
+							$response["data"][] = $tmp_data;
+						else
+							$response["data"] = array_merge($response["data"], $tmp_data);
 				}
 			}
 			else
