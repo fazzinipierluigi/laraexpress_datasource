@@ -186,7 +186,7 @@ class EloquentSource
 						throw new \Exception('The function you provided must return an associative array');
 
 					if(!empty($tmp_data))
-						if(count($tmp_data) == count($tmp_data, COUNT_RECURSIVE))
+						if(!$this->is_multi_array($tmp_data))
 							$response["data"][] = $tmp_data;
 						else
 							$response["data"] = array_merge($response["data"], $tmp_data);
@@ -565,5 +565,12 @@ class EloquentSource
 	private function groupCount()
 	{
 		return 0;
+	}
+
+	private function is_multi_array($a)
+	{
+		$rv = array_filter($a,'is_array');
+		$array_count = count($rv);
+		return ($array_count > 0 && count($a) == $array_count);
 	}
 }
