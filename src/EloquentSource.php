@@ -330,7 +330,7 @@ class EloquentSource
 								case "<":
 								case "<=":
 										if(empty($fields_map[$expression[0]]))
-											$query->{$clause}($expression[0],$operator,$value);
+											$this->setFilter($query,$clause,$expression[0],$operator,$value);
 										else
 											$this->setFilter($query,$clause,$fields_map[$expression[0]],$operator,$value);
 									break;
