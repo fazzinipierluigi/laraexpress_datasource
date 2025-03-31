@@ -146,14 +146,14 @@ class EloquentSource
 			if(is_string($group_summary))
 				$group_summary = json_decode($group_summary,1);
 
-			$this->processGroups($group_expression, $field_map, ($data_filters['skip'] ?? 0), ($data_filters['take'] ?? 10));
+			$this->processGroups($group_expression, $field_map, ($data_filters['skip'] ?? 0), ($data_filters['take'] ?? 8446744073709551616));
 
 			# Retrieve group count if required
 			$this->group_count = (!empty($data_filters["requireGroupCount"])) ? $this->data_grid_filtered_dataset->groupCount() : NULL;
 		}
 		else
 		{
-			$this->data_grid_filtered_dataset->skip(($data_filters['skip'] ?? 0))->take(($data_filters['take'] ?? 10));
+			$this->data_grid_filtered_dataset->skip(($data_filters['skip'] ?? 0))->take(($data_filters['take'] ?? 8446744073709551616));
 		}
 	}
 
