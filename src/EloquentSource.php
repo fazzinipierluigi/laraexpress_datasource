@@ -386,7 +386,20 @@ class EloquentSource
 			$value = (Carbon::createFromFormat('Y-m-d', $value, $this->default_timezone))->setTimezone($this->utc_timezone);
 		}
 
-		if(is_string($field))
+		if(is_bool($value))
+		{
+			$query->{$clause}(function($filter_clause) use ($clause, $field, $operator, $value) {
+				$other_clause = '';
+				if($value)
+					$other_clause = 'orWhereNotNull';
+				else
+					$other_clause = 'orWhereNull';
+
+				$filter_clause->{$clause}($field, $operator, $value)
+							  ->{$other_clause}($field);
+			});
+		}
+		elseif(is_string($field))
 			$query->{$clause}($field, $operator, $value);
 		elseif(is_array($field))
 		{
