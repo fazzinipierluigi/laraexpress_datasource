@@ -391,12 +391,15 @@ class EloquentSource
 			$query->{$clause}(function($filter_clause) use ($clause, $field, $operator, $value) {
 				$other_clause = '';
 				if($value)
-					$other_clause = 'orWhereNotNull';
+				{
+					$filter_clause->{$clause}($field, $operator, $value);
+				}
 				else
+				{
 					$other_clause = 'orWhereNull';
-
-				$filter_clause->{$clause}($field, $operator, $value)
-							  ->{$other_clause}($field);
+					$filter_clause->{$clause}($field, $operator, $value)
+								  ->{$other_clause}($field);
+				}
 			});
 		}
 		elseif(is_string($field))
