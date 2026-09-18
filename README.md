@@ -129,3 +129,22 @@ public function index(Request $request)
 ```
 
 In this case if we had passed only the "field_map" array to apply the sorting would have been done based on the customer id, instead by overriding it we can force the sorting by company name while still maintaining the search by id.
+
+### Computed columns (raw SQL expressions)
+
+A `field_map` (and `field_sorting`) entry can also be a raw `Illuminate\Database\Query\Expression`
+(e.g. built with `DB::raw(...)`), useful when the datagrid column is not a real database
+column but a value computed at query time (a `CASE` expression, a JSON path extraction, a
+`DATEDIFF`, ...). It is filtered and sorted with any operator (`=`, `<>`, `>`, `>=`, `<`, `<=`,
+`contains`, `startswith`, ...), the same as a plain column name:
+
+```php
+$field_map = [
+	// Days since a JSON-stored date, computed at query time
+	'days_open' => DB::raw('DATEDIFF(NOW(), JSON_UNQUOTE(JSON_EXTRACT(tickets.extra, "$.opened_at")))'),
+];
+$data_source->apply($tickets, $request, $field_map);
+```
+
+The frontend can filter this column with any numeric operator (e.g. "more than 40 days") and
+sort by it exactly like a regular column.
