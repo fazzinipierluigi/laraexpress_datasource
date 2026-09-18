@@ -7,6 +7,7 @@ namespace Fazzinipierluigi\LaraexpressDatasource;
 
 use Carbon\Carbon;
 use Carbon\CarbonTimeZone;
+use Illuminate\Database\Query\Expression;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 
@@ -112,6 +113,8 @@ class EloquentSource
 						{
 							if(is_string($field_map[$sort->selector]))
 								$this->data_grid_filtered_dataset->orderBy($field_map[$sort->selector],(!empty($sort->desc))?'DESC':'ASC');
+							elseif($field_map[$sort->selector] instanceof Expression)
+								$this->data_grid_filtered_dataset->orderBy($field_map[$sort->selector],(!empty($sort->desc))?'DESC':'ASC');
 							elseif(is_array($field_map[$sort->selector]))
 								$this->data_grid_filtered_dataset->orderBy($field_map[$sort->selector][0],(!empty($sort->desc))?'DESC':'ASC');
 						}
@@ -127,6 +130,8 @@ class EloquentSource
 						elseif(!empty($field_map[$sort]))
 						{
 							if(is_string($field_map[$sort]))
+								$this->data_grid_filtered_dataset->orderBy($field_map[$sort]);
+							elseif($field_map[$sort] instanceof Expression)
 								$this->data_grid_filtered_dataset->orderBy($field_map[$sort]);
 							elseif(is_array($field_map[$sort]))
 								$this->data_grid_filtered_dataset->orderBy($field_map[$sort][0]);
@@ -402,6 +407,8 @@ class EloquentSource
 				}
 			});
 		}
+		elseif($field instanceof Expression)
+			$query->{$clause}($field, $operator, $value);
 		elseif(is_string($field))
 			$query->{$clause}($field, $operator, $value);
 		elseif(is_array($field))
