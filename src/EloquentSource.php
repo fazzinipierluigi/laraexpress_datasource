@@ -39,6 +39,10 @@ class EloquentSource
 	 */
 	private $group_count = NULL;
 	private $groups_tree = NULL;
+	/**
+	 * @var int
+	 */
+	private $groups_full_count = 0;
 
 	private $default_timezone;
 	private $utc_timezone;
@@ -153,8 +157,11 @@ class EloquentSource
 
 			$this->processGroups($group_expression, $field_map, ($data_filters['skip'] ?? 0), ($data_filters['take'] ?? 8446744073709551616));
 
-			# Retrieve group count if required
-			$this->group_count = (!empty($data_filters["requireGroupCount"])) ? $this->data_grid_filtered_dataset->groupCount() : NULL;
+			# Retrieve group count if required (number of top level groups, before paging)
+			$this->group_count = (!empty($data_filters["requireGroupCount"])) ? $this->groupCount() : NULL;
+
+			# With remote group paging, skip/take apply to the top level groups
+			$this->groups_tree = array_slice($this->groups_tree, (int) ($data_filters['skip'] ?? 0), (int) ($data_filters['take'] ?? PHP_INT_MAX));
 		}
 		else
 		{
@@ -177,7 +184,7 @@ class EloquentSource
 	 */
 	public function getArray($output = NULL)
 	{
-		if(empty($this->groups_tree))
+		if(is_null($this->groups_tree))
 		{
 			$response = [];
 
@@ -216,7 +223,16 @@ class EloquentSource
 			}
 		}
 		else
+		{
 			$response = ["data" => $this->groups_tree];
+
+			if(!is_null($this->total_count))
+				$response["totalCount"] = $this->total_count;
+			if(!is_null($this->group_count))
+				$response["groupCount"] = $this->group_count;
+			if(!is_null($this->total_summary))
+				$response["summary"] = $this->total_summary;
+		}
 
 		return $response;
 	}
@@ -482,6 +498,8 @@ class EloquentSource
 
 		foreach($new_query->get() as $row)
 			$this->groups_tree = $this->add_tree($group_structure, $row, $this->groups_tree);
+
+		$this->groups_full_count = count($this->groups_tree);
 	}
 
 	/**
@@ -538,72 +556,73 @@ class EloquentSource
 		return $sql;
 	}
 
-	private function add_tree($fields, $row, $array, $level = NULL)
+	/**
+	 * Adds a grouped row (one row per distinct combination of the group
+	 * columns, with its leaf_count) to the group tree, level by level.
+	 *
+	 * @param array $fields Aliases of the group columns, per level
+	 * @param object $row
+	 * @param array $array The groups of the current level
+	 * @param int $level
+	 * @return array
+	 */
+	private function add_tree($fields, $row, $array, $level = 0)
 	{
-		if($level === NULL)
-			$level = 0;
-		else
-		{
-			$level++;
-			if($level == count($fields))
-				return $array;
-		}
+		if($level >= count($fields))
+			return $array;
 
+		$is_last_level = ($level === count($fields) - 1);
+
+		# A selector mapped to several columns places the row in the group of
+		# every column that has a value; without any value it is a blank group
+		$values = [];
 		foreach($fields[$level] as $column)
 		{
-			$tmp_val = $row->$column;
-			if(is_null($tmp_val))
-				continue;
-			
-			$tmp_key = NULL;
-			$filtered = Arr::first($array,function($value, $key) use ($tmp_val, &$tmp_key){
-				if(!empty($value['key']) && $value['key'] === $tmp_val)
-				{
-					$tmp_key = $key;
-					return TRUE;
-				}
+			if(!is_null($row->$column) && !in_array($row->$column, $values, TRUE))
+				$values[] = $row->$column;
+		}
+		if(empty($values))
+			$values[] = NULL;
 
-				return FALSE;
-			});
-
-			if(!empty($filtered))
+		foreach($values as $value)
+		{
+			$index = NULL;
+			foreach($array as $key => $group)
 			{
-				if($array[$tmp_key]['sys_level'] === $level)
-					$array[$tmp_key]['count'] += $row->leaf_count;
-				else
-					$array[$tmp_key]['items'] = $this->add_tree($fields, $row, $filtered['items'] ?? [], $level);
-			}
-			else
-			{
-				if(count($fields) - 1 > $level)
+				if($group['key'] === $value)
 				{
-					$array[] = [
-						'sys_level' => $level,
-						'key'   => $tmp_val,
-						'items' => $this->add_tree($fields, $row, [], $level)
-					];
-				}
-				else
-				{
-					$array[] = [
-						'sys_level' => $level,
-						'key'   => $tmp_val,
-						'count' => $row->leaf_count,
-						'items' => NULL
-					];
+					$index = $key;
+					break;
 				}
 			}
+
+			if(is_null($index))
+			{
+				$array[] = [
+					'key'   => $value,
+					'count' => 0,
+					'items' => $is_last_level ? NULL : [],
+				];
+				$index = array_key_last($array);
+			}
+
+			$array[$index]['count'] += (int) $row->leaf_count;
+
+			if(!$is_last_level)
+				$array[$index]['items'] = $this->add_tree($fields, $row, $array[$index]['items'], $level + 1);
 		}
 
 		return $array;
 	}
 
 	/**
+	 * Number of top level groups, before paging.
+	 *
 	 * @return int
 	 */
 	private function groupCount()
 	{
-		return 0;
+		return $this->groups_full_count;
 	}
 
 	private function is_multi_array($a)
