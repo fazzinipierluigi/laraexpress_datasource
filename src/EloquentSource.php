@@ -53,7 +53,7 @@ class EloquentSource
 	 * @param string $tz The timezone valid rappresenation
 	 * @return void
 	 * */
-	public function setTimezone(string $tz = NULL)
+	public function setTimezone(?string $tz = NULL)
 	{
 		if (!empty($tz))
 			$this->default_timezone = new CarbonTimeZone($tz);
@@ -438,88 +438,104 @@ class EloquentSource
 		$group_structure = [];
 		if(!empty($expression))
 		{
-			$groupCount = 0;
-			$last_group_expanded = true;
+			# Any ORDER BY inherited from the sort options would reference
+			# columns that are not part of the GROUP BY (ONLY_FULL_GROUP_BY)
+			$new_query->reorder();
+
+			$grammar = $new_query->getQuery()->getGrammar();
+			$select_list = [];
+
 			if (is_string($expression))
 			{
-				$select_list = [];
-				$expression_fields = explode(",", trim($expression));
-				foreach($expression_fields as $group_index => $expression_field)
-				{
-					if(!empty($field_map[$expression_field]))
-					{
-						if(is_string($field_map[$expression_field]))
-						{
-							$group_structure[$group_index][] = 'FIELD_'.str_replace('.','_',$field_map[$expression_field]);
-							$select_list[] = $field_map[$expression_field].' AS FIELD_'.str_replace('.','_',$field_map[$expression_field]);
-							$new_query->groupBy($field_map[$expression_field]);
-							$new_query->orderBy($field_map[$expression_field],'ASC');
-						}
-						elseif(is_array($field_map[$expression_field]))
-						{
-							foreach($field_map[$expression_field] as $sub_field)
-							{
-								$group_structure[$group_index][] = 'FIELD_'.str_replace('.','_',$sub_field);
-								$select_list[] = $sub_field.' AS FIELD_'.str_replace('.','_',$sub_field);
-								$new_query->groupBy($sub_field);
-								$new_query->orderBy($sub_field,'ASC');
-							}
-						}
-					}
-					else
-					{
-						$group_structure[$group_index][] = 'FIELD_'.str_replace('.','_',$expression_field);
-						$select_list[] = $expression_field.' AS FIELD_'.str_replace('.','_',$expression_field);
-						$new_query->groupBy($expression_field);
-						$new_query->orderBy($expression_field,'ASC');
-					}
-				}
-				$select_list[] = DB::raw('COUNT(1) AS leaf_count');
-
-				$new_query->select($select_list);
+				$group_items = [];
+				foreach(explode(",", trim($expression)) as $selector)
+					$group_items[] = (object) ['selector' => trim($selector)];
 			}
-			elseif (is_array($expression))
-			{
-				$select_list = [];
-				foreach($expression as $group_index => $col)
-				{
-					if(!empty($field_map[$col->selector]))
-					{
-						if(is_string($field_map[$col->selector]))
-						{
-							$group_structure[$group_index][] = 'FIELD_'.str_replace('.','_',$field_map[$col->selector]);
-							$select_list[] = $field_map[$col->selector].' AS FIELD_'.str_replace('.','_',$field_map[$col->selector]);
-							$new_query->groupBy($field_map[$col->selector]);
-							$new_query->orderBy($field_map[$col->selector],(empty($col->desc))?"ASC":"DESC");
-						}
-						elseif(is_array($field_map[$col->selector]))
-						{
-							foreach($field_map[$col->selector] as $sub_field)
-							{
-								$group_structure[$group_index][] = 'FIELD_'.str_replace('.','_',$sub_field);
-								$select_list[] = $sub_field.' AS FIELD_'.str_replace('.','_',$sub_field);
-								$new_query->groupBy($sub_field);
-								$new_query->orderBy($sub_field,(empty($col->desc))?"ASC":"DESC");
-							}
-						}
-					}
-					else
-					{
-						$group_structure[$group_index][] = 'FIELD_'.str_replace('.','_',$col->selector);
-						$select_list[] = $col->selector.' AS FIELD_'.str_replace('.','_',$col->selector);
-						$new_query->groupBy($col->selector);
-						$new_query->orderBy($col->selector,(empty($col->desc))?"ASC":"DESC");
-					}
-				}
-				$select_list[] = DB::raw('COUNT(1) AS leaf_count');
+			else
+				$group_items = is_array($expression) ? $expression : [];
 
+			foreach($group_items as $group_index => $col)
+			{
+				$direction = (empty($col->desc)) ? "ASC" : "DESC";
+				$columns = $this->groupColumns($col->selector, $field_map, $col->groupInterval ?? NULL, $grammar);
+
+				foreach($columns as $column_index => $sql)
+				{
+					$alias = 'FIELD_'.$group_index.'_'.$column_index;
+					$group_structure[$group_index][] = $alias;
+					$select_list[] = DB::raw($sql.' AS '.$alias);
+					$new_query->groupBy(DB::raw($sql));
+					$new_query->orderBy(DB::raw($sql), $direction);
+				}
+			}
+
+			if(!empty($select_list))
+			{
+				$select_list[] = DB::raw('COUNT(1) AS leaf_count');
 				$new_query->select($select_list);
 			}
 		}
 
 		$this->groups_tree = [];
+		if(empty($group_structure))
+			return;
+
 		foreach($new_query->get() as $row)
 			$this->groups_tree = $this->add_tree($group_structure, $row, $this->groups_tree);
+	}
+
+	/**
+	 * Resolves a group selector to the SQL expressions to group by: a mapped
+	 * column name, an array of columns or a raw Expression, optionally wrapped
+	 * by the DevExtreme groupInterval (date part or numeric bucket).
+	 *
+	 * @param string $selector
+	 * @param array $field_map
+	 * @param string|int|null $group_interval
+	 * @param \Illuminate\Database\Grammar $grammar
+	 * @return string[]
+	 */
+	private function groupColumns($selector, $field_map, $group_interval, $grammar)
+	{
+		$mapped = $field_map[$selector] ?? $selector;
+		$fields = is_array($mapped) ? $mapped : [$mapped];
+
+		$columns = [];
+		foreach($fields as $field)
+		{
+			$sql = ($field instanceof Expression) ? (string) $field->getValue($grammar) : $grammar->wrap($field);
+			$columns[] = $this->applyGroupInterval($sql, $group_interval);
+		}
+
+		return $columns;
+	}
+
+	/**
+	 * @param string $sql
+	 * @param string|int|null $group_interval
+	 * @return string
+	 */
+	private function applyGroupInterval($sql, $group_interval)
+	{
+		if($group_interval === NULL || $group_interval === '')
+			return $sql;
+
+		if(is_numeric($group_interval))
+			return 'FLOOR(('.$sql.') / '.(float) $group_interval.') * '.(float) $group_interval;
+
+		switch($group_interval)
+		{
+			case 'year':      return 'YEAR('.$sql.')';
+			case 'quarter':   return 'QUARTER('.$sql.')';
+			case 'month':     return 'MONTH('.$sql.')';
+			case 'day':       return 'DAY('.$sql.')';
+			case 'dayOfWeek': return '(DAYOFWEEK('.$sql.') - 1)';
+			case 'hour':      return 'HOUR('.$sql.')';
+			case 'minute':    return 'MINUTE('.$sql.')';
+			case 'second':    return 'SECOND('.$sql.')';
+		}
+
+		return $sql;
 	}
 
 	private function add_tree($fields, $row, $array, $level = NULL)
