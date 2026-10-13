@@ -302,7 +302,7 @@ class EloquentSource
 									$query->whereNull($expression[0]);
 								else
 								{
-									if(is_string($fields_map[$expression[0]]))
+									if(is_string($fields_map[$expression[0]]) || $fields_map[$expression[0]] instanceof Expression)
 										$query->whereNull($fields_map[$expression[0]]);
 									elseif(is_array($fields_map[$expression[0]]))
 									{
@@ -324,7 +324,7 @@ class EloquentSource
 									$query->whereNotNull($expression[0]);
 								else
 								{
-									if(is_string($fields_map[$expression[0]]))
+									if(is_string($fields_map[$expression[0]]) || $fields_map[$expression[0]] instanceof Expression)
 										$query->whereNotNull($fields_map[$expression[0]]);
 									elseif(is_array($fields_map[$expression[0]]))
 									{
@@ -404,7 +404,13 @@ class EloquentSource
 		if (preg_match('/^\d{4}-[01]\d-[0-3]\dT[0-2]\d:[0-5]\d:[0-5]\d(?:\.\d+)?Z?$/', $value)) {
 			$value = (Carbon::createFromFormat('Y-m-d\TH:i:s', $value, $this->default_timezone))->setTimezone($this->utc_timezone);
 		} elseif (preg_match('/^(([12]\d{3})-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01]))$/', $value)) {
-			$value = (Carbon::createFromFormat('Y-m-d', $value, $this->default_timezone))->setTimezone($this->utc_timezone);
+			$value = (Carbon::createFromFormat('!Y-m-d', $value, $this->default_timezone))->setTimezone($this->utc_timezone);
+		} elseif (preg_match('/^\d{1,2}\/\d{1,2}\/\d{4}$/', $value)) {
+			// DevExtreme.AspNet.Data serializes local dates as "M/d/yyyy"...
+			$value = (Carbon::createFromFormat('!n/j/Y', $value, $this->default_timezone))->setTimezone($this->utc_timezone);
+		} elseif (preg_match('/^\d{1,2}\/\d{1,2}\/\d{4} \d{2}:\d{2}:\d{2}\.\d{3}$/', $value)) {
+			// ...and appends "HH:mm:ss.fff" only when the time is not midnight.
+			$value = (Carbon::createFromFormat('n/j/Y H:i:s.v', $value, $this->default_timezone))->setTimezone($this->utc_timezone);
 		}
 
 		if(is_bool($value))
